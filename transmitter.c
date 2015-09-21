@@ -6,7 +6,6 @@
 
  /* GLOBAL VARIABLES ARE INSIDE THE HEADER */
 
-
 int main(int argc, char *argv[]) {
 	int sockfd, port;		// sock file descriptor and port number
 	pid_t pid;			// process id for forking
@@ -25,6 +24,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
+		// flag set to 1 (connection is established)
 		isSocketOpen = 1;
 
 		// initializing the socket host information
@@ -56,6 +56,8 @@ int main(int argc, char *argv[]) {
 				} else {
 					printf("Waiting for XON...\n");
 				}
+
+				usleep(1000);	// delaying sendto per loop so behaviors can be seen
 			}
 
 			fclose(tFile);
@@ -87,10 +89,12 @@ int main(int argc, char *argv[]) {
 
 
 		} else {
+			// child cannot be created: error
 			printf("ERROR: Child cannot be created. (MANDUL)\n");
 			return 1;
 		}
 
+		// finishing program and closing
 		printf("[TRANSMITTER] Finished!\n");
 		return 0;
 	}
