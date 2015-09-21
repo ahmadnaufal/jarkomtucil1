@@ -33,21 +33,21 @@ int main(int argc, char *argv[]) {
 		receiverAddr.sin_addr.s_addr = inet_addr(receiverIP);
 		receiverAddr.sin_port = htons(port);
 
+		// open the text file
+		tFile = fopen(argv[argc-1], "r");
+		if (tFile == NULL) {
+			printf("ERROR: File %s not Found.\n", argv[argc-1]);
+			return 1;
+		}
+
 		if ((pid = fork()) > 0) {
 			// this is the parent process
 			// use as char transmitter from the text file
-
-			tFile = fopen(argv[argc-1], "r");
-			if (tFile == NULL) {
-				printf("ERROR: File %s not Found.\n", argv[argc-1]);
-				return 1;
-			}
-
 			// connect to receiver, and read the file per character
 			int counter = 1;
 			while ((buf[0] = fgetc(tFile)) != EOF) {
 				if (isXON) {
-					if (sendto(sockfd, buf, BUFMAX, 0, &receiverAddr, receiverAddrLen) != BUFMAX) {
+					if (sendto(sockfd, buf, BUFMAX, 0, (const struct sockaddr *) &receiverAddr, receiverAddrLen) != BUFMAX) {
 						printf("ERROR: sendto() sent buffer with size more than expected.\n");
 						return 1;
 					}
@@ -70,8 +70,8 @@ int main(int argc, char *argv[]) {
 			// read if there is XON/XOFF sent by receiver by using sendto
 			struct sockaddr_in srcAddr;
 			int srcLen = sizeof(srcAddr);
-			while (!isSocketClosed) {
-				if (recvfrom(sockfd, xbuf, BUFMAX, 0, &srcAddr, &srcLen) != BUFMAX) {
+			while (isSocketOpen) {
+				if (recvfrom(sockfd, xbuf, BUFMAX, 0, (struct sockaddr *) &srcAddr, &srcLen) != BUFMAX) {
 					printf("ERROR: recvfrom() receive buffer with size more than expected.\n");
 					return 1;
 				}
