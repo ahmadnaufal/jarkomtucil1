@@ -49,8 +49,8 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-		if (connect(sockfd,(struct sockaddr *)&receiverAddr,sizeof(receiverAddr)) < 0) 
-        	errorr("CONNECT FAILED :(");
+		/*if (connect(sockfd,(struct sockaddr *)&receiverAddr,sizeof(receiverAddr)) < 0) 
+        	errorr("CONNECT FAILED :(");*/
 
 		if ((pid = fork()) > 0) {
 			// this is the parent process
@@ -59,9 +59,8 @@ int main(int argc, char *argv[]) {
 			int counter = 1;
 			while ((buf[0] = fgetc(tFile)) != EOF) {
 				if (isXON) {
-					int senttt;
-					if ((senttt = sendto(sockfd, buf, BUFMAX, 0, (const struct sockaddr *) &receiverAddr, receiverAddrLen)) != BUFMAX) {
-						printf("ERROR: sendto() sent buffer with size more than expected %d.\n", senttt);
+					if (sendto(sockfd, buf, BUFMAX, 0, (const struct sockaddr *) &receiverAddr, receiverAddrLen) != BUFMAX) {
+						printf("ERROR: sendto() sent buffer with size more than expected.\n");
 						return 1;
 					}
 
