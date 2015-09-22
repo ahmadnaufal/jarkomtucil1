@@ -2,8 +2,8 @@
  * File : dcomm.h 
  */ 
 
-#ifndef _DCOMM_H_ 
-#define _DCOMM_H_ 
+#ifndef _RECEIVER_H_ 
+#define _RECEIVER_H_ 
 
 /* ASCII Const */ 
 #define SOH 1 /* Start of Header Character */
