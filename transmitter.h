@@ -35,9 +35,9 @@ int isSocketOpen;	// flag to indicate if connection from socket is done
 struct sockaddr_in receiverAddr;			// receiver host information
 int receiverAddrLen = sizeof(receiverAddr);
 
-FILE *tFile;		// file descriptor
-char *receiverIP;	// buffer for Host IP address
-char buf[BUFMAX];	// buffer for character to send
+FILE *tFile;			// file descriptor
+char *receiverIP;		// buffer for Host IP address
+char buf[BUFMAX];		// buffer for character to send
 char xbuf[BUFMAX+1];	// buffer for receiving XON/XOFF characters
 
 
