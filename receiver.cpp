@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
  	pid_t pid = fork();
 	/*** IF PARENT PROCESS ***/
 	if(!pid) {
-	 	while (true) {
+	 	while(true) {
  			c = *(rcvchar(sockfd, rxq));
 	 		/* Quit on end of file */
  			if(c == Endfile) {
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 	}
 	/*** ELSE IF CHILD PROCESS ***/
 	else {
- 		while (true) {
+ 		while(true) {
  			Byte *data,*current;
  			/* Call q_get */
  			current = q_get(rxq,data);
