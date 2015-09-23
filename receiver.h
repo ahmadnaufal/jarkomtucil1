@@ -26,6 +26,9 @@
 #define BYTESIZE 256 /* The maximum value of a byte */
 #define MAXLEN 1024 /* Maximum messages length */ 
 
+#define MIN_UPPERLIMIT 5
+#define MAX_LOWERLIMIT 2
+
 typedef unsigned char Byte;
 typedef struct QTYPE {
  	unsigned int count;
