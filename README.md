@@ -1,1 +1,0 @@
-# jarkomtucil1
