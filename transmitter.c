@@ -1,6 +1,9 @@
  /* File 	: transmitter.c */
 #include "transmitter.h"
 
+int sockfd, port;		// sock file descriptor and port number
+struct hostent *server;
+
 void *child(void * i);
 void errorr(char *message) {
 	perror(message);
@@ -8,9 +11,6 @@ void errorr(char *message) {
 }
 
 int main(int argc, char *argv[]) {
-	int sockfd, port;		// sock file descriptor and port number
-	pid_t pid;			// process id for forking
-	struct hostent *server;
 
 	if (argc < 4) {
 		// case if arguments are less than specified
@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
 			} else {
 				printf("Waiting for XON...\n");
 			}
-			usleep(1500);
+			sleep(1);
 		}
 		// sending endfile to receiver, marking the end of data transfer
 		buf[0] = Endfile;

@@ -121,7 +121,7 @@ void *panggilQGet(void *threadid) {
  	do {
  		current = q_get(rxq, data);
  		if (current != NULL && endFileReceived) break;
- 		usleep(2500);
+ 		sleep(2);
  	} while (true);
  	pthread_exit(NULL);
 }
@@ -137,9 +137,10 @@ static Byte *q_get(QTYPE *queue, Byte *data)
  		*current = queue->data[queue->front];
  		if (*current == Endfile) exit(0);
 
- 		queue->front = ((*queue).front++) % 8;
- 		(*queue).count--;
- 		printf("mengkonsumsi byte ke-%d: '%c'\n",queue->rear, *current);
+ 		queue->front++;
+ 		if (queue->front == 8) queue->front = 0;
+ 		queue->count--;
+ 		printf("mengkonsumsi byte ke-%d: '%c'\n",queue->front, *current);
  	}
 
  	/* Insert code here.  Retrieve data from buffer, save it to "current" and "data"
