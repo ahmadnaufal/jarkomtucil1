@@ -1,5 +1,6 @@
 /* File : T1_rx.cpp */
 #include <cstdio>
+#include <pthread.h>
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/types.h>
@@ -31,7 +32,7 @@ unsigned int srcLen = sizeof(srcAddr);
 /* Functions declaration */
 static Byte *rcvchar(int sockfd, QTYPE *queue);
 static Byte *q_get(QTYPE *, Byte *);
-
+void *panggilQGet(void * threadid);
 void error(char* message);
 
 int main(int argc, char *argv[])
@@ -40,53 +41,34 @@ int main(int argc, char *argv[])
  		fprintf(stderr, "usage %s port\n",argv[0]);
  		exit(0);	
  	}
-
  	printf("membuat socket untuk koneksi ke %s\n", argv[0]);
  	if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
  		error("ERROR OPENING SOCKET");
-
- 	printf("TEST1\n");
-
-	printf("TES2\n");
  	bzero((char*) &adhost, sizeof(adhost));
  	adhost.sin_family = AF_INET;
  	adhost.sin_port = htons(atoi(argv[1]));
  	adhost.sin_addr.s_addr = INADDR_ANY;
 
- 	printf("TEST3\n");
  	if(bind(sockfd, (struct sockaddr*) &adhost, sizeof(adhost)) < 0)
  		error("error connecting");
 
  	/* Create child process */
- 	pid_t pid;
+ 	pthread_t thread[1];
+ 	int i=0;
  	endFileReceived = 0;
  	memset(rxbuf, 0, sizeof(rxbuf));
- 	
- 	
-	/*** IF PARENT PROCESS ***/
-	if ((pid = fork()) > 0) {
-		Byte c;
-	 	while (true) {
- 			c = *(rcvchar(sockfd, rxq));
-	 		/* Quit on end of file */
- 			if (c == Endfile) {
- 				exit(0);
- 			}
-		}
-	} else if (pid == 0) {
-		/*** ELSE IF CHILD PROCESS ***/
-		Byte *data, *current = NULL;
- 		do {
- 			/* Call q_get */
- 			current = q_get(rxq, data);
+	int rc = pthread_create(&thread[i],NULL,panggilQGet,(void *)i); 		
+ 	if(rc) 
+ 		printf("ga bisa bikin bego!!\n");
 
- 			if (current != NULL && endFileReceived) break;
- 			/* Can introduce some delay here. */
- 			sleep(1);
- 		} while (true);
- 	} else {
- 		error("JANCOK ASU");
- 	}
+	/* parent process */
+	Byte c;
+	 while (true) {
+ 		c = *(rcvchar(sockfd, rxq));
+ 		if (c == Endfile) {
+ 			exit(0);
+ 		}
+	}
 }
 
 void error(char *message) {
@@ -109,9 +91,10 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
  	current = (Byte *) malloc(sizeof(Byte));
  	*current = tempBuf[0];
 
- 	printf("Menerima byte ke-%d: '%c'\n",queue->count, *current);
 
  	if (*current == Endfile) endFileReceived = 1;
+ 	else 
+ 		printf("Menerima byte ke-%d: '%c'\n",queue->count, *current);
 
  	if (queue->count < 8) {
  		(*queue).rear = (queue->count > 0) ? (++(*queue).rear) % 8 : queue->rear;
@@ -131,14 +114,25 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
  	return current;
 }
 
+
+void *panggilQGet(void *threadid) {
+
+	Byte *data, *current = NULL;
+ 	do {
+ 		current = q_get(rxq, data);
+ 		if (current != NULL && endFileReceived) break;
+ 		usleep(2500);
+ 	} while (true);
+ 	pthread_exit(NULL);
+}
+
 static Byte *q_get(QTYPE *queue, Byte *data)
 /* q_get returns a pointer to the buffer where data is read or NULL if buffer is empty. */
 {
  	Byte *current = NULL;
  	char b[1];
  	/* Nothing in the queue */
- 	printf("%d\n", queue->count);
- 	if (queue->count > 0) {
+ 	if(queue->count > 0) {
  		current = (Byte* ) malloc (sizeof(Byte));
  		*current = queue->data[queue->front];
  		if (*current == Endfile) exit(0);
