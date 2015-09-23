@@ -47,4 +47,13 @@ typedef struct MESGB {
  	Byte *data;
 } MESGB;
 
+/* FUNCTIONS AND PROCEDURES */
+static Byte *rcvchar(int sockfd, QTYPE *queue);
+
+static Byte *q_get(QTYPE *, Byte *);
+
+void *childRProcess(void * threadid);
+
+void error(const char* message);
+
 #endif
