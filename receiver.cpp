@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <cstring>
 #include "receiver.h"
+
 #define bzero(p, size) (void)memset((p), 0 , (size))
 /* Delay to adjust speed of consuming buffer, in milliseconds */
 #define DELAY 500
@@ -29,49 +30,50 @@ struct sockaddr_in adhost;
 struct sockaddr_in srcAddr;
 unsigned int srcLen = sizeof(srcAddr);
 
-/* Functions declaration */
-static Byte *rcvchar(int sockfd, QTYPE *queue);
-static Byte *q_get(QTYPE *, Byte *);
-void *panggilQGet(void * threadid);
-void error(char* message);
-
 int main(int argc, char *argv[])
 {
+ 	pthread_t thread[1];
+
  	if(argc<2) {
- 		fprintf(stderr, "usage %s port\n",argv[0]);
- 		exit(0);	
+ 		// case if arguments are less than specified
+ 		printf("Please use the program with arguments: %s <port>\n", argv[0]);
+ 		return 0;
  	}
- 	printf("membuat socket untuk koneksi ke %s\n", argv[0]);
+
+ 	printf("Creating socket to self in Port %s...\n", argv[1]);
  	if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
- 		error("ERROR OPENING SOCKET");
+ 		printf("ERROR: Create socket failed.\n");
+
  	bzero((char*) &adhost, sizeof(adhost));
  	adhost.sin_family = AF_INET;
  	adhost.sin_port = htons(atoi(argv[1]));
  	adhost.sin_addr.s_addr = INADDR_ANY;
 
  	if(bind(sockfd, (struct sockaddr*) &adhost, sizeof(adhost)) < 0)
- 		error("error connecting");
+ 		error("ERROR: Binding failed.\n");
 
- 	/* Create child process */
- 	pthread_t thread[1];
- 	int i=0;
  	endFileReceived = 0;
- 	memset(rxbuf, 0, sizeof(rxbuf));
-	int rc = pthread_create(&thread[i],NULL,panggilQGet,(void *)i); 		
- 	if(rc) 
- 		printf("ga bisa bikin bego!!\n");
 
-	/* parent process */
+ 	memset(rxbuf, 0, sizeof(rxbuf));
+ 	
+ 	/* Create child process */
+ 	if(pthread_create(&thread[0], NULL, childRProcess, 0)) 
+ 		error("ERROR: Failed to create thread for child.\n");
+
+	/* parent process: unlimited looping */
 	Byte c;
-	 while (true) {
+	while (!endFileReceived) {
  		c = *(rcvchar(sockfd, rxq));
- 		if (c == Endfile) {
- 			exit(0);
- 		}
+
+ 		if (c == Endfile)
+ 			endFileReceived = 1;
 	}
+
+	return 0;
 }
 
-void error(char *message) {
+
+void error(const char *message) {
 	perror(message);
 	exit(1);
 }
@@ -84,45 +86,53 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
  	Byte* current;
  	char tempBuf[1];
  	char b[1];
+ 	static int counter = 1;
 
  	if (recvfrom(sockfd, tempBuf, 1, 0, (struct sockaddr *) &srcAddr, &srcLen) < 0)
- 		error("FAILED to receive character from socket");
+ 		error("ERROR: Failed to receive character from socket\n");
 
  	current = (Byte *) malloc(sizeof(Byte));
  	*current = tempBuf[0];
 
-
- 	if (*current == Endfile) endFileReceived = 1;
- 	else 
- 		printf("Menerima byte ke-%d: '%c'\n",queue->count, *current);
+ 	if (*current != Endfile) {
+ 		if (*current == '\n')
+ 			printf("Receiving byte number-%d: '( NEWLINE )'\n",counter++);
+ 		else
+ 			printf("Receiving byte number-%d: '%c'\n",counter++, *current);
+ 	}
 
  	if (queue->count < 8) {
- 		(*queue).rear = (queue->count > 0) ? (++(*queue).rear) % 8 : queue->rear;
- 		(*queue).data[queue->rear] = *current;
- 		(*queue).count++;
+ 		queue->rear = (queue->count > 0) ? (queue->rear+1) % 8 : queue->rear;
+ 		queue->data[queue->rear] = *current;
+ 		queue->count++;
  	}
 
  	if(queue->count >= (MIN_UPPERLIMIT) && sent_xonxoff == XON) {
- 		printf("buffer besar dari maksimum upper limit. mengirim XOFF %d\n",queue->count);
+ 		printf("[XOFF] Buffer reached Minimum Upperlimit. Sending XOFF to transmitter...\n");
  		send_xoff = true;
  		b[0] = sent_xonxoff = XOFF;
 
  		if(sendto(sockfd, b, 1, 0,(struct sockaddr *) &srcAddr, srcLen) < 0)
- 			error("error ngirim XOFF\n");
+ 			error("ERROR: Failed to send XOFF.\n");
  	}
 
  	return current;
 }
 
 
-void *panggilQGet(void *threadid) {
+void *childRProcess(void *threadid) {
+	Byte *data,
+	*current = NULL;
 
-	Byte *data, *current = NULL;
- 	do {
+ 	while (true) {
  		current = q_get(rxq, data);
- 		if (current != NULL && endFileReceived) break;
+
+ 		if (current != NULL && endFileReceived)
+ 			break;
+
  		sleep(2);
- 	} while (true);
+ 	}
+
  	pthread_exit(NULL);
 }
 
@@ -131,28 +141,34 @@ static Byte *q_get(QTYPE *queue, Byte *data)
 {
  	Byte *current = NULL;
  	char b[1];
- 	/* Nothing in the queue */
- 	if(queue->count > 0) {
- 		current = (Byte* ) malloc (sizeof(Byte));
+ 	static int counter = 1;
+ 	/* Only consume if the buffer is not empty */
+ 	if (queue->count > 0) {
+ 		current = (Byte *) malloc(sizeof(Byte));
  		*current = queue->data[queue->front];
- 		if (*current == Endfile) exit(0);
-
+ 		//if (*current == Endfile) exit(0);
+ 		// incrementing front (circular) and reducing number of elements
  		queue->front++;
  		if (queue->front == 8) queue->front = 0;
  		queue->count--;
- 		printf("mengkonsumsi byte ke-%d: '%c'\n",queue->front, *current);
+ 		if (*current == '\n')
+ 			printf("CONSUME! Consuming byte number-%d: '( NEWLINE )'\n",counter++);
+ 		else
+ 			printf("CONSUME! Consuming byte number-%d: '%c'\n",counter++, *current);
  	}
 
  	/* Insert code here.  Retrieve data from buffer, save it to "current" and "data"
  	If the number of characters in the receive buffer is below certain  level, then send
  	XON. Increment front index and check for wraparound. */
- 	if(queue->count <= MAX_LOWERLIMIT && sent_xonxoff == XOFF) {
+ 	if (queue->count <= MAX_LOWERLIMIT && sent_xonxoff == XOFF) {
+ 		printf("[XON] Buffer reaches Maximum Lowerlimit. Sending XON to transmitter...\n");
  		send_xon = true;
- 		printf("buffer lebih kecil dari minimum lowerlimit. mengirim XON\n");
+
  		b[0] = sent_xonxoff = XON;
  		if(sendto(sockfd, b, 1, 0, (struct sockaddr *) &srcAddr, srcLen) < 0)
- 			error("error ngirim XON\n");
+ 			error("ERROR: Failed to send XON.\n");
  	}	
 
+ 	// return the Byte consumed
  	return current;
 }

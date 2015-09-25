@@ -30,16 +30,8 @@
 #define MAXLEN 1024 /* Maximum messages length */ 
 #define BUFMAX 1	/* Maximum size of buffer that can be sent */
 
-int isXON = 1;		// flag for XON/XOFF sent
-int isSocketOpen;	// flag to indicate if connection from socket is done
+void error(const char *message);
 
-struct sockaddr_in receiverAddr;			// receiver host information
-int receiverAddrLen = sizeof(receiverAddr);
-
-FILE *tFile;			// file descriptor
-char *receiverIP;		// buffer for Host IP address
-char buf[BUFMAX+1];		// buffer for character to send
-char xbuf[BUFMAX+1];	// buffer for receiving XON/XOFF characters
-
+void *childProcess(void *threadid);
 
 #endif
