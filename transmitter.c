@@ -17,10 +17,6 @@ char xbuf[BUFMAX+1];	// buffer for receiving XON/XOFF characters
 int isXON = 1;		// flag for XON/XOFF sent
 int isSocketOpen;	// flag to indicate if connection from socket is done
 
-
-void *childProcess(void * i);
-
-
 int main(int argc, char *argv[]) {
 	pthread_t thread[1];
 
@@ -64,10 +60,19 @@ int main(int argc, char *argv[]) {
 			if (sendto(sockfd, buf, BUFMAX, 0, (const struct sockaddr *) &receiverAddr, receiverAddrLen) != BUFMAX)
 				error("ERROR: sendto() sent buffer with size more than expected.\n");
 			
-			if (buf[0] == '\n')
-				printf("Sending byte number %d: \'( NEWLINE )\'\n", counter++);
-			else
-				printf("Sending byte number %d: \'%c\'\n", counter++, buf[0]);
+			printf("Sending byte no. %d: ", counter++);
+			switch (buf[0]) {
+				case CR:	printf("\'Carriage Return\'\n");
+							break;
+				case LF:	printf("\'Line Feed\'\n");
+							break;
+				case Endfile:
+						printf("\'End of File\'\n");
+						break;
+				case 255:	break;
+				default:	printf("\'%c\'\n", buf[0]);
+							break;
+			}
 		} else {
 			while (!isXON) {
 				printf("Waiting for XON...\n");
@@ -76,10 +81,12 @@ int main(int argc, char *argv[]) {
 		}
 		sleep(1);
 	}
-		// sending endfile to receiver, marking the end of data transfer
+
+	// sending endfile to receiver, marking the end of data transfer
 	buf[0] = Endfile;
 	sendto(sockfd, buf, BUFMAX, 0, (const struct sockaddr *) &receiverAddr, receiverAddrLen);
 	fclose(tFile);
+	
 	printf("Byte sending done! Closing sockets...\n");
 	close(sockfd);
 	isSocketOpen = 0;

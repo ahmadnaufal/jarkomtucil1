@@ -1,27 +1,13 @@
 /* File : T1_rx.cpp */
-#include <cstdio>
-#include <pthread.h>
-#include <cstdlib>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <cstring>
-#include "receiver.h"
 
-#define bzero(p, size) (void)memset((p), 0 , (size))
-/* Delay to adjust speed of consuming buffer, in milliseconds */
-#define DELAY 500
-/* Define receive buffer size */
-#define RXQSIZE 8
+#include "receiver.h"
 
 Byte rxbuf[RXQSIZE];
 QTYPE rcvq = { 0, 0, 0, RXQSIZE, rxbuf };
 QTYPE *rxq = &rcvq;
 Byte sent_xonxoff = XON;
-bool send_xon = false,
-send_xoff = false;
+unsigned send_xon = 0,
+send_xoff = 0;
 int endFileReceived;
 
 /* Socket */
@@ -34,7 +20,7 @@ int main(int argc, char *argv[])
 {
  	pthread_t thread[1];
 
- 	if(argc<2) {
+ 	if (argc<2) {
  		// case if arguments are less than specified
  		printf("Please use the program with arguments: %s <port>\n", argv[0]);
  		return 0;
@@ -62,12 +48,15 @@ int main(int argc, char *argv[])
 
 	/* parent process: unlimited looping */
 	Byte c;
-	while (!endFileReceived) {
+	while (1) {
  		c = *(rcvchar(sockfd, rxq));
 
  		if (c == Endfile)
  			endFileReceived = 1;
 	}
+
+	printf("Receiving End of File... Receiver Complete!\n");
+	printf("Waiting for the next transmission...\n");
 
 	return 0;
 }
@@ -95,21 +84,32 @@ static Byte *rcvchar(int sockfd, QTYPE *queue)
  	*current = tempBuf[0];
 
  	if (*current != Endfile) {
- 		if (*current == '\n')
- 			printf("Receiving byte number-%d: '( NEWLINE )'\n",counter++);
- 		else
- 			printf("Receiving byte number-%d: '%c'\n",counter++, *current);
+ 		printf("Receiving byte no. %d: ", counter++);
+		switch (*current) {
+			case CR:	printf("\'Carriage Return\'\n");
+						break;
+			case LF:	printf("\'Line Feed\'\n");
+						break;
+			case Endfile:
+						printf("\'End of File\'\n");
+						break;
+			case 255:	break;
+			default:	printf("\'%c\'\n", *current);
+						break;
+		}
  	}
 
+ 	// adding char to buffer and resync the buffer queue
  	if (queue->count < 8) {
  		queue->rear = (queue->count > 0) ? (queue->rear+1) % 8 : queue->rear;
  		queue->data[queue->rear] = *current;
  		queue->count++;
  	}
 
+ 	// if the buffer reaches Minimum Upperlimit, send XOFF to Transmitter
  	if(queue->count >= (MIN_UPPERLIMIT) && sent_xonxoff == XON) {
  		printf("[XOFF] Buffer reached Minimum Upperlimit. Sending XOFF to transmitter...\n");
- 		send_xoff = true;
+ 		send_xoff = 1; send_xon = 0;
  		b[0] = sent_xonxoff = XOFF;
 
  		if(sendto(sockfd, b, 1, 0,(struct sockaddr *) &srcAddr, srcLen) < 0)
@@ -124,12 +124,13 @@ void *childRProcess(void *threadid) {
 	Byte *data,
 	*current = NULL;
 
- 	while (true) {
+ 	while (1) {
  		current = q_get(rxq, data);
 
- 		if (current != NULL && endFileReceived)
- 			break;
-
+ 		// if end file, quit the process
+ 		/*if (current != NULL && endFileReceived)
+ 			break;*/
+ 		// introduce some delay here
  		sleep(2);
  	}
 
@@ -142,6 +143,7 @@ static Byte *q_get(QTYPE *queue, Byte *data)
  	Byte *current = NULL;
  	char b[1];
  	static int counter = 1;
+
  	/* Only consume if the buffer is not empty */
  	if (queue->count > 0) {
  		current = (Byte *) malloc(sizeof(Byte));
@@ -151,10 +153,20 @@ static Byte *q_get(QTYPE *queue, Byte *data)
  		queue->front++;
  		if (queue->front == 8) queue->front = 0;
  		queue->count--;
- 		if (*current == '\n')
- 			printf("CONSUME! Consuming byte number-%d: '( NEWLINE )'\n",counter++);
- 		else
- 			printf("CONSUME! Consuming byte number-%d: '%c'\n",counter++, *current);
+
+ 		printf("CONSUME! Consuming byte no. %d: ", counter++);
+		switch (*current) {
+			case CR:	printf("\'Carriage Return\'\n");
+						break;
+			case LF:	printf("\'Line Feed\'\n");
+						break;
+			case Endfile:
+						printf("\'End of File\'\n");
+						break;
+			case 255:	break;
+			default:	printf("\'%c\'\n", *current);
+						break;
+		}
  	}
 
  	/* Insert code here.  Retrieve data from buffer, save it to "current" and "data"
@@ -162,7 +174,7 @@ static Byte *q_get(QTYPE *queue, Byte *data)
  	XON. Increment front index and check for wraparound. */
  	if (queue->count <= MAX_LOWERLIMIT && sent_xonxoff == XOFF) {
  		printf("[XON] Buffer reaches Maximum Lowerlimit. Sending XON to transmitter...\n");
- 		send_xon = true;
+ 		send_xon = 1; send_xoff = 0;
 
  		b[0] = sent_xonxoff = XON;
  		if(sendto(sockfd, b, 1, 0, (struct sockaddr *) &srcAddr, srcLen) < 0)
